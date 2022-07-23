@@ -24,7 +24,7 @@ def generate(key=DEFAULT_HASH_KEY):
     next_module:
         push  esi                       // Save InInitOrder for next module
         mov   ebx, [esi+0x08]           // EBX = InInitOrder[X].base_address
-        movzx eax, byte ptr [esi+0x1e]  // EAX = InInitOrder[X].module_name_length
+        movzx eax, byte ptr [esi+0x1E]  // EAX = InInitOrder[X].module_name_length
         mov   [ebp-0x8], eax            // Save ModuleNameLength for later
 
     find_function:
@@ -70,7 +70,7 @@ def generate(key=DEFAULT_HASH_KEY):
         mov   edx, [edi+0x24]           // AddressOfNameOrdinals RVA
         add   edx, ebx                  // AddressOfNameOrdinals VMA
         mov   cx,  [edx+2*ecx]          // Extrapolate the function's ordinal
-        mov   edx, [edi+0x1c]           // AddressOfFunctions RVA
+        mov   edx, [edi+0x1C]           // AddressOfFunctions RVA
         add   edx, ebx                  // AddressOfFunctions VMA
         mov   eax, [edx+4*ecx]          // Get the function RVA
         add   eax, ebx                  // Get the function VMA

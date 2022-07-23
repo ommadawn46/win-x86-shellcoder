@@ -19,21 +19,21 @@ def parse_args():
             "-b",
             "--badchars",
             required=False,
-            help="Bad chars",
+            help="Characters to avoid",
         )
         parser.add_argument(
             "-r",
             "--run_shellcode",
             action="store_true",
             required=False,
-            help="Run shellcode",
+            help="Inject shellcode into a current Python process",
         )
         parser.add_argument(
             "-w",
             "--use_windbg",
             action="store_true",
             required=False,
-            help="Set int3 for windbg",
+            help="Insert int3 for debugger into shellcode",
         )
         parser.add_argument(
             "-e",
@@ -41,12 +41,14 @@ def parse_args():
             required=False,
             choices=list(EXIT_FUNCTIONS.keys()),
             default="process",
-            help="Exit Function",
+            help="Function called to terminate shellcode",
         )
         return parser
 
     def setup_reverse_parser(subparsers):
-        reverse_parser = subparsers.add_parser("reverse", help="Reverse shell")
+        reverse_parser = subparsers.add_parser(
+            "reverse", help="Generate reverse shell shellcode"
+        )
         reverse_parser.add_argument(
             "-i",
             "--lhost",
@@ -62,7 +64,9 @@ def parse_args():
         return reverse_parser
 
     def setup_bind_parser(subparsers):
-        bind_parser = subparsers.add_parser("bind", help="Bind shell")
+        bind_parser = subparsers.add_parser(
+            "bind", help="Generate bind shell shellcode"
+        )
         bind_parser.add_argument(
             "-p",
             "--rport",
@@ -72,7 +76,9 @@ def parse_args():
         return bind_parser
 
     def setup_exec_parser(subparsers):
-        exec_parser = subparsers.add_parser("exec", help="Execute command")
+        exec_parser = subparsers.add_parser(
+            "exec", help="Generate execute command shellcode"
+        )
         exec_parser.add_argument(
             "-c",
             "--command",
@@ -82,7 +88,9 @@ def parse_args():
         return exec_parser
 
     def setup_egghunter_parser(subparsers):
-        egghunter_parser = subparsers.add_parser("egghunter", help="Egghunter")
+        egghunter_parser = subparsers.add_parser(
+            "egghunter", help="Generate egghunter shellcode"
+        )
         egghunter_parser.add_argument(
             "egghunter_type",
             choices=["ntaccess", "seh"],
@@ -96,6 +104,18 @@ def parse_args():
         )
         return egghunter_parser
 
+    def setup_loadfile_parser(subparsers):
+        loadfile_parser = subparsers.add_parser(
+            "loadfile", help="Load shellcode from file"
+        )
+        loadfile_parser.add_argument(
+            "-f",
+            "--file",
+            required=True,
+            help="File path to load",
+        )
+        return loadfile_parser
+
     parser = setup_parser()
     mode_subparsers = parser.add_subparsers(
         dest="mode", required=True, help="Shellcode mode"
@@ -105,6 +125,7 @@ def parse_args():
     setup_bind_parser(mode_subparsers)
     setup_exec_parser(mode_subparsers)
     setup_egghunter_parser(mode_subparsers)
+    setup_loadfile_parser(mode_subparsers)
 
     return parser.parse_args()
 
@@ -145,6 +166,15 @@ def generate_asm_code(args, bad_chars):
     return code
 
 
+def generate_shellcode(args, bad_chars):
+    if args.mode == "loadfile":
+        with open(args.file, "rb") as f:
+            return f.read()
+
+    code = generate_asm_code(args, bad_chars)
+    return assemble(code)
+
+
 def main():
     args = parse_args()
 
@@ -152,8 +182,7 @@ def main():
     if args.badchars:
         bad_chars = literal_eval(f"b'{args.badchars}'")
 
-    code = generate_asm_code(args, bad_chars)
-    shellcode = assemble(code)
+    shellcode = generate_shellcode(args, bad_chars)
     print(f"# shellcode size: {hex(len(shellcode))} ({len(shellcode)})")
 
     contains_bad_chars = any(c in bad_chars for c in shellcode)
