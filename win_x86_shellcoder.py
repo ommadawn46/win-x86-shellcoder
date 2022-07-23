@@ -22,12 +22,14 @@ def parse_args():
             help="Bad chars",
         )
         parser.add_argument(
+            "-r",
             "--run_shellcode",
             action="store_true",
             required=False,
             help="Run shellcode",
         )
         parser.add_argument(
+            "-w",
             "--use_windbg",
             action="store_true",
             required=False,

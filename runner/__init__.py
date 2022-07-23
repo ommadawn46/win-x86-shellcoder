@@ -17,7 +17,7 @@ def load_shellcode(shellcode):
     return ptr
 
 
-def run_shellcode(ptr):
+def run_shellcode(ptr, wait=True):
     ht = ctypes.windll.kernel32.CreateThread(
         ctypes.c_int(0),
         ctypes.c_int(0),
@@ -26,4 +26,5 @@ def run_shellcode(ptr):
         ctypes.c_int(0),
         ctypes.pointer(ctypes.c_int(0)),
     )
-    ctypes.windll.kernel32.WaitForSingleObject(ctypes.c_int(ht), ctypes.c_int(-1))
+    if wait:
+        ctypes.windll.kernel32.WaitForSingleObject(ctypes.c_int(ht), ctypes.c_int(-1))
