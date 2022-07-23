@@ -6,8 +6,8 @@ from runner import load_shellcode, run_shellcode
 from stones import assemble, disassemble_and_find_bad_chars
 
 EXIT_FUNCTIONS = {
-    "process": "TerminateProcess",
-    "thread": "RtlExitUserThread",
+    "process": ("KERNEL32.DLL", "TerminateProcess"),
+    "thread": ("ntdll.dll", "RtlExitUserThread"),
     "none": None,
 }
 

