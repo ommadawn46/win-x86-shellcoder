@@ -57,6 +57,6 @@ class TestEgghunter(unittest.TestCase):
         result = test_egghunter_with_reverse_shell(egghunter.generate_ntaccess)
         self.assertTrue(result)
 
-    # SEH egghunter could not be tested, because SafeSEH is enabled in Python binary
+    # SEH egghunter could not be tested because SafeSEH is enabled in Python binary
     # def test_seh_egghunter(self):
     #     pass

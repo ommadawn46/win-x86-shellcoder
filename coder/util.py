@@ -38,14 +38,14 @@ def push_hash(module_name, function_name, key=DEFAULT_HASH_KEY):
     return f"push  {hex(hash)};"
 
 
-def find_hash_key(function_names, bad_chars):
+def find_hash_key(functions, bad_chars):
     for key in range(0x20):
         if not any(
             any(
                 c in bad_chars
                 for c in compute_hash(m_name, f_name, key).to_bytes(4, "little")
             )
-            for m_name, f_name in function_names
+            for m_name, f_name in functions
         ):
             return key
 

