@@ -1,24 +1,19 @@
-import struct
-
-
 def assemble(asm):
     from keystone import KS_ARCH_X86, KS_MODE_32, Ks
 
     ks = Ks(KS_ARCH_X86, KS_MODE_32)
     encoding, _ = ks.asm(asm)
-
-    sh = b""
-    for e in encoding:
-        sh += struct.pack("B", e)
-    return bytearray(sh)
+    return bytearray(encoding)
 
 
-def disassemble_and_find_bad_chars(shellcode, bad_chars):
+def disassemble(shellcode):
     from capstone import CS_ARCH_X86, CS_MODE_32, Cs
 
     cs = Cs(CS_ARCH_X86, CS_MODE_32)
-    instructions = cs.disasm(shellcode, 0)
+    return cs.disasm(shellcode, 0)
 
+
+def find_bad_chars(instructions, bad_chars):
     asm = []
     for ins in instructions:
         found_bad_char = False

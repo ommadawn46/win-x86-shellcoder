@@ -1,9 +1,9 @@
 import argparse
 from ast import literal_eval
 
+import runner
+import stones
 from coder import bind_shell, egghunter, exec_command, reverse_shell
-from runner import load_shellcode, run_shellcode
-from stones import assemble, disassemble_and_find_bad_chars
 
 EXIT_FUNCTIONS = {
     "process": ("KERNEL32.DLL", "TerminateProcess"),
@@ -172,7 +172,7 @@ def generate_shellcode(args, bad_chars):
             return f.read()
 
     code = generate_asm_code(args, bad_chars)
-    return assemble(code)
+    return stones.assemble(code)
 
 
 def main():
@@ -184,23 +184,25 @@ def main():
 
     shellcode = generate_shellcode(args, bad_chars)
     print(f"# shellcode size: {hex(len(shellcode))} ({len(shellcode)})")
+    print(f"shellcode = {bytes(shellcode)}")
 
     contains_bad_chars = any(c in bad_chars for c in shellcode)
-    if not contains_bad_chars:
-        print(f"shellcode = {bytes(shellcode)}")
-    else:
-        asm = disassemble_and_find_bad_chars(shellcode, bad_chars)
+    if contains_bad_chars:
+        instructions = stones.disassemble(shellcode)
+        asm = stones.find_bad_chars(instructions, bad_chars)
+        print("\n# bad chars were found in the shellcode")
         print(asm)
-        print("\nBad chars found")
 
     if args.run_shellcode:
-        ptr = load_shellcode(shellcode)
-        print(f"Shellcode address: {hex(ptr)}")
+        ptr = runner.load_shellcode(shellcode)
+        print(f"\n# address of the injected shellcode: {hex(ptr)}")
 
-        input("Press any key to execute shellcode...")
-        run_shellcode(ptr)
+        input("Press any key to execute the shellcode...")
 
-        print("Shellcode thread terminated")
+        print("Executing the shellcode")
+        runner.run_shellcode(ptr)
+
+        print("Execution finished")
 
 
 if __name__ == "__main__":
