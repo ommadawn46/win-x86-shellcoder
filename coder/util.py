@@ -1,12 +1,10 @@
 DEFAULT_HASH_KEY = 0xE
 
 
-def convert_ip_addr_hex(ip_addr):
+def convert_ip_addr_bytes(ip_addr):
     import ipaddress
 
-    return hex(
-        int.from_bytes(int(ipaddress.IPv4Address(ip_addr)).to_bytes(4, "little"), "big")
-    )
+    return int(ipaddress.IPv4Address(ip_addr)).to_bytes(4, "big")
 
 
 def convert_port_hex(port):
@@ -55,7 +53,7 @@ def find_hash_key(functions, bad_chars):
     return DEFAULT_HASH_KEY
 
 
-def push_string(input_str, bad_chars):
+def push_string(input_str, bad_chars, end=b"\x00"):
     def gen_push_code(dword):
         if not any(c in bad_chars for c in dword):
             return f'push  {hex(int.from_bytes(dword, "little"))};'
@@ -87,7 +85,8 @@ def push_string(input_str, bad_chars):
             f"push  eax;"
         )
 
-    input_bytes = input_str.encode() + b"\x00"
+    input_bytes = input_str.encode() if type(input_str) is str else input_str
+    input_bytes += end
 
     code = ""
     for i in range(0, len(input_bytes), 4)[::-1]:

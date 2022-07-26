@@ -172,7 +172,8 @@ def generate_shellcode(args, bad_chars):
             return f.read()
 
     code = generate_asm_code(args, bad_chars)
-    return stones.assemble(code)
+    replaced_code = stones.replace_instructions(code, bad_chars)
+    return stones.assemble(replaced_code)
 
 
 def main():

