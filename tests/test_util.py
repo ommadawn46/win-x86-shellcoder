@@ -50,7 +50,7 @@ class TestUtil(unittest.TestCase):
             (b"\x00", 0x5, False),
             (b"\x00\x2F", 0x8, False),
             (b"\x00\x2F\x3D", 0xA, False),
-            (b"\x00\x0D\x2F\x3D", 0xD, False),
+            (b"\x00\x0D\x2F\x3D", 0x2D, False),
             (b"\x00\x0D\x2E\x2F\x3D", 0xE, False),
             (b"\x00\x0D\x2D\x2E\x2F\x3D", 0x12, False),
             (b"\x00\x0D\x2D\x2E\x2F\x3D\x3F", 0x14, False),

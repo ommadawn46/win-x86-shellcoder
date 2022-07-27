@@ -44,7 +44,7 @@ class TestExecCommand(unittest.TestCase):
 
     def test_run_replaced_shellcode(self):
         port = random.randint(49152, 65535)
-        bad_chars = b"\x00\x08\x09\x18\x19\x1C\x1F\x20\x30"
+        bad_chars = b"\x00\x08\x09\x0A\x0B\x0D\x20\x23\x25\x26\x2E\x2F\x3D\x3F\x5C"
 
         code = exec_command.generate(
             cmd=f"powershell -c curl http://127.0.0.1:{port}/pwned | Out-Null",

@@ -21,6 +21,7 @@ def convert_neg(dword):
 
 
 def ror(byte, count):
+    count %= 0x20
     return ((byte << (0x20 - count)) | (byte >> count)) & 0xFFFFFFFF
 
 
@@ -45,6 +46,8 @@ def find_hash_key(functions, bad_chars):
             )
             for m_name, f_name in functions
         ):
+            while key in bad_chars:
+                key += 0x20
             return key
 
     print(
